@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: event-service
+
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/event_service_db
+      auto-index-creation: true
