@@ -7,6 +7,9 @@ import com.ticketerra.event_service.service.EventService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+
+import java.net.URI;
 
 
 @RestController
@@ -16,8 +19,19 @@ public class EventController {
     private final EventService eventService;
 
     @PostMapping
-    public ResponseEntity<EventResponse> createEvent(@RequestBody EventRequest eventRequest){
-        return ResponseEntity.ok(eventService.createEvent(eventRequest));
+    public ResponseEntity<EventResponse> createEvent(@RequestBody EventRequest eventRequest) {
+        // Call your service to create the event
+        EventResponse createdEvent = eventService.createEvent(eventRequest);
+
+        // Create the URI of the newly created event
+        URI location = ServletUriComponentsBuilder
+                .fromCurrentRequest()
+                .path("/{id}")
+                .buildAndExpand(createdEvent.getId()) // Assuming EventResponse has a getId() method
+                .toUri();
+
+        // Return 201 Created with the location and the created event in the body
+        return ResponseEntity.created(location).body(createdEvent);
     }
 
     @GetMapping

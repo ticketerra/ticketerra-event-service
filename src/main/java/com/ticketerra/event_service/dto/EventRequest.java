@@ -3,13 +3,14 @@ package com.ticketerra.event_service.dto;
 import com.ticketerra.event_service.model.Artist;
 import com.ticketerra.event_service.model.Location;
 import com.ticketerra.event_service.model.TicketSale;
-import lombok.Builder;
-import lombok.Data;
+import lombok.*;
 
 import java.util.List;
 
 @Data
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class EventRequest {
     private String date;
     private String title;
