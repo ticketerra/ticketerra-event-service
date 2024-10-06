@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 @Service
 public interface EventService {
     EventResponse createEvent(EventRequest eventRequest);
-    PaginatedResponse<EventResponse> getEvents(Integer offset, Integer limit);
+    PaginatedResponse<EventResponse> getEvents(Integer offset, Integer limit, String query);
     EventResponse getEvent(String id);
     EventResponse updateEvent(String id, EventRequest eventRequest);
 

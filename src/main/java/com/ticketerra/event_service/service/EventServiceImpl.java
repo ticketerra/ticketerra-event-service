@@ -41,41 +41,32 @@ public class EventServiceImpl implements EventService{
     }
 
     @Override
-    public PaginatedResponse<EventResponse> getEvents(Integer offset, Integer limit) {
-        List<EventResponse> eventResponses;
-        long totalElements;
-        int totalPages = 1; // Default totalPages when returning all events
+    public PaginatedResponse<EventResponse> getEvents(Integer offset, Integer limit, String query) {
+        Pageable pageable = (offset == -1 && limit == -1)
+                ? Pageable.unpaged()
+                : PageRequest.of(offset, limit);
 
-        if (offset == -1 && limit == -1) {
-            // Return all events without pagination
-            List<Event> events = eventRepository.findAllByIsDeletedFalse();
-            totalElements = events.size();
+        Page<Event> eventPage;
 
-            eventResponses = events.stream().map(event -> {
-                EventResponse eventResponse = new EventResponse();
-                BeanUtils.copyProperties(event, eventResponse);
-                return eventResponse;
-            }).collect(Collectors.toList());
-
+        // Perform full-text search if the query is provided
+        if (query != null && !query.isEmpty()) {
+            eventPage = eventRepository.searchByTextAndIsDeletedFalse(query, pageable);
         } else {
-            // Apply pagination
-            Pageable pageable = PageRequest.of(offset, limit);
-            Page<Event> eventPage = eventRepository.findAllByIsDeletedFalse(pageable);
-            totalElements = eventPage.getTotalElements();
-            totalPages = eventPage.getTotalPages();
-
-            eventResponses = eventPage.getContent().stream().map(event -> {
-                EventResponse eventResponse = new EventResponse();
-                BeanUtils.copyProperties(event, eventResponse);
-                return eventResponse;
-            }).collect(Collectors.toList());
+            // If no query, return all non-deleted events
+            eventPage = eventRepository.findAllByIsDeletedFalse(pageable);
         }
+
+        List<EventResponse> eventResponses = eventPage.getContent().stream().map(event -> {
+            EventResponse eventResponse = new EventResponse();
+            BeanUtils.copyProperties(event, eventResponse);
+            return eventResponse;
+        }).collect(Collectors.toList());
 
         return PaginatedResponse.<EventResponse>builder()
                 .data(eventResponses)
-                .currentPage(offset == -1 ? 0 : offset) // Set page 0 if no pagination
-                .totalPages(totalPages)
-                .totalElements(totalElements)
+                .currentPage(eventPage.getNumber())
+                .totalPages(eventPage.getTotalPages())
+                .totalElements(eventPage.getTotalElements())
                 .build();
     }
 

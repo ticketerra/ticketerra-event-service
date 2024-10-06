@@ -37,9 +37,10 @@ public class EventController {
     @GetMapping
     public ResponseEntity<PaginatedResponse<EventResponse>> getEvents(
             @RequestParam(defaultValue = "-1") Integer offset,
-            @RequestParam(defaultValue = "-1") Integer limit
+            @RequestParam(defaultValue = "-1") Integer limit,
+            @RequestParam(required = false) String query
     ){
-        return ResponseEntity.ok(eventService.getEvents(offset, limit));
+        return ResponseEntity.ok(eventService.getEvents(offset, limit, query));
     }
 
     @GetMapping("/{id}")

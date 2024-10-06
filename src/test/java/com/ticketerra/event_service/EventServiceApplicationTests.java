@@ -18,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.testcontainers.containers.MongoDBContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -120,6 +121,42 @@ class EventServiceApplicationTests {
 	}
 
 	@Test
+	void shouldGetEventsWithSearchText() {
+		// Setup: Create and save a test event
+		Event eventEntity = new Event();
+		eventEntity.setTitle("Test Event");
+		eventEntity.setDate("2024-11-16T20:00:00Z");
+		eventEntity.setDescription("A test event for integration testing");
+		eventEntity.setLocation(new Location("Test Venue", "Test City", "Test Country"));
+		eventRepository.save(eventEntity);
+
+		String url = "http://localhost:" + port + "/api/events?query=Test Event";
+
+		// Use ParameterizedTypeReference to handle generic types like PaginatedResponse
+		ParameterizedTypeReference<PaginatedResponse<EventResponse>> responseType =
+				new ParameterizedTypeReference<>() {};
+
+		// Send a GET request to retrieve the events
+		ResponseEntity<PaginatedResponse<EventResponse>> response =
+				restTemplate.exchange(url, HttpMethod.GET, null, responseType);
+
+		// Check if the response status is OK (200)
+		assertEquals(HttpStatus.OK, response.getStatusCode());
+
+		// Get the PaginatedResponse body
+		PaginatedResponse<EventResponse> paginatedResponse = response.getBody();
+
+		// Assert that the response body is not null
+		assertNotNull(paginatedResponse);
+
+		// Assert that the data in PaginatedResponse contains at least one event
+		List<EventResponse> events = paginatedResponse.getData();
+		assertNotNull(events);
+		assertFalse(events.isEmpty());  // Ensure there is at least one event
+	}
+
+
+	@Test
 	void shouldGetEvent() {
 		// Setup: Create and save a test event
 		Event eventEntity = new Event();
@@ -197,5 +234,113 @@ class EventServiceApplicationTests {
 		// Verify the event has been deleted
 		Optional<Event> deletedEvent = eventRepository.findByIdAndIsDeletedFalse(savedEvent.getId());
 		assertFalse(deletedEvent.isPresent());
+	}
+
+	@Test
+	void shouldNotCreateEventWithDuplicateTitle() {
+		// Arrange: Create the first event with a unique title
+		EventRequest eventRequest = EventRequest.builder()
+				.title("Duplicate Title")
+				.date("2024-11-16T20:00:00Z")
+				.description("First event")
+				.location(new Location("Venue A", "City A", "Country A"))
+				.build();
+
+		String url = "http://localhost:" + port + "/api/events";
+
+		// Act: Send a POST request to create the first event
+		restTemplate.postForEntity(url, eventRequest, EventResponse.class);
+
+		// Attempt to create a second event with the same title
+		EventRequest duplicateEventRequest = EventRequest.builder()
+				.title("Duplicate Title")  // Same title as the first event
+				.date("2024-12-16T20:00:00Z")
+				.description("Second event")
+				.location(new Location("Venue B", "City B", "Country B"))
+				.build();
+
+		// Expecting a BAD_REQUEST (400) response
+		HttpClientErrorException exception = assertThrows(
+				HttpClientErrorException.class,
+				() -> restTemplate.postForEntity(url, duplicateEventRequest, EventResponse.class)
+		);
+
+		// Assert: Verify the status code is BAD_REQUEST
+		assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+	}
+
+	@Test
+	void shouldNotGetEventWhenNotFound() {
+		String url = "http://localhost:" + port + "/api/events/nonexistentId";
+
+		// Expecting a NOT_FOUND (404) response
+		HttpClientErrorException exception = assertThrows(
+				HttpClientErrorException.class,
+				() -> restTemplate.getForEntity(url, EventResponse.class)
+		);
+
+		// Assert: Verify the status code is NOT_FOUND
+		assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+	}
+
+	@Test
+	void shouldNotUpdateEventWhenNotFound() {
+		String url = "http://localhost:" + port + "/api/events/nonexistentId";
+
+		EventRequest updateRequest = EventRequest.builder()
+				.title("Updated Title")
+				.date("2024-12-01T20:00:00Z")
+				.description("Updated description")
+				.location(new Location("Updated Venue", "Updated City", "Updated Country"))
+				.build();
+
+		// Expecting a NOT_FOUND (404) response
+		HttpClientErrorException exception = assertThrows(
+				HttpClientErrorException.class,
+				() -> restTemplate.exchange(url, HttpMethod.PUT, new ResponseEntity<>(updateRequest, HttpStatus.OK), EventResponse.class)
+		);
+
+		// Assert: Verify the status code is NOT_FOUND
+		assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+	}
+
+	@Test
+	void shouldNotUpdateEventWhenTitleAlreadyExist() {
+		String url = "http://localhost:" + port + "/api/events";
+
+		// Arrange: Create the first event with a unique title
+		EventRequest eventRequest = EventRequest.builder()
+				.title("First Title")
+				.build();
+
+		ResponseEntity<EventResponse> firstEvent = restTemplate.postForEntity(url, eventRequest, EventResponse.class);
+
+		// Arrange: Create the Second event with a unique title
+		eventRequest.setTitle("Second Title");
+		restTemplate.postForEntity(url, eventRequest, EventResponse.class);
+
+		String updateFirstURL = "http://localhost:" + port + "/api/events/" + firstEvent.getBody().getId();
+		eventRequest.setTitle("Second Title");
+
+		// Expecting a NOT_FOUND (400) response
+		HttpClientErrorException exception = assertThrows(
+				HttpClientErrorException.class,
+				() -> restTemplate.exchange(updateFirstURL, HttpMethod.PUT, new ResponseEntity<>(eventRequest, HttpStatus.OK), EventResponse.class)
+		);
+
+		assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+	}
+	@Test
+	void shouldNotDeleteEventWhenNotFound() {
+		String url = "http://localhost:" + port + "/api/events/nonexistentId";
+
+		// Expecting a NOT_FOUND (404) response
+		HttpClientErrorException exception = assertThrows(
+				HttpClientErrorException.class,
+				() -> restTemplate.exchange(url, HttpMethod.DELETE, null, Void.class)
+		);
+
+		// Assert: Verify the status code is NOT_FOUND
+		assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
 	}
 }
